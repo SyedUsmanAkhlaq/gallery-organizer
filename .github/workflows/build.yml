@@ -1,0 +1,85 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write # needed to publish GitHub Releases
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      # The runner image does NOT ship with Flutter.
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Tool versions
+        run: |
+          flutter --version
+          java -version
+
+      - name: Verify committed signing key is readable
+        run: keytool -list -keystore android/app/debug.keystore -storetype pkcs12 -storepass android -alias androiddebugkey
+
+      - run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos
+
+      - name: Unit tests
+        run: flutter test
+
+      # arm64-only: every Android 13/14 phone is arm64; halves APK size once
+      # the native inference libraries are added.
+      - name: Build release APK
+        run: >
+          flutter build apk --release
+          --target-platform android-arm64
+          --build-number ${{ github.run_number }}
+          --build-name 0.1.${{ github.run_number }}
+
+      - name: Rename APK
+        run: |
+          mkdir -p dist
+          cp build/app/outputs/flutter-apk/app-release.apk dist/gallery-organizer.apk
+          ls -la dist
+          sha256sum dist/gallery-organizer.apk | tee dist/gallery-organizer.apk.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gallery-organizer-${{ github.run_number }}
+          path: dist/
+
+      # Stable phone-friendly URL (public repos only):
+      # https://github.com/<owner>/<repo>/releases/latest/download/gallery-organizer.apk
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="build-${{ github.run_number }}"
+          gh release create "$TAG" dist/gallery-organizer.apk dist/gallery-organizer.apk.sha256 \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title "Build ${{ github.run_number }} ($(git rev-parse --short HEAD))" \
+            --notes "Commit: ${{ github.sha }}" \
+            --latest

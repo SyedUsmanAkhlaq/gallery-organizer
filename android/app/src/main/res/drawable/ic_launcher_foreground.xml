@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Simple "photo" glyph: frame, sun and mountains. 108dp adaptive canvas,
+     artwork kept inside the 66dp safe zone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M32,34h44a4,4 0,0 1,4 4v32a4,4 0,0 1,-4 4h-44a4,4 0,0 1,-4 -4v-32a4,4 0,0 1,4 -4zM33,39v30h42v-30z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M36,66l11,-14l8,9l6,-6l11,11z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M64,47m-4,0a4,4 0,1 1,8 0a4,4 0,1 1,-8 0" />
+</vector>
