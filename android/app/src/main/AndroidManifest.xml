@@ -10,6 +10,12 @@
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
 
+    <!-- Background scan: WorkManager foreground worker of type dataSync,
+         with a progress notification (runtime-requested on Android 13+). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <!-- PRIVACY: strip INTERNET even if a library declares it. Without this
          permission the OS blocks every socket the app opens, so no photo,
          thumbnail, embedding or telemetry can leave the device. -->
@@ -21,7 +27,7 @@
          embeddings). dataExtractionRules additionally blocks Android 12+
          device-to-device transfer, which allowBackup alone does not. -->
     <application
-        android:name="${applicationName}"
+        android:name=".GalleryApplication"
         android:label="Gallery Organizer"
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="false"
@@ -46,6 +52,24 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- WorkManager's foreground service must declare the type we use. -->
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            android:foregroundServiceType="dataSync"
+            tools:node="merge" />
+
+        <!-- Lets "Share log" hand the error log to another app. Only the
+             files/logs/ folder is exposed (see res/xml/log_paths.xml). -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.logs"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/log_paths" />
+        </provider>
+
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />

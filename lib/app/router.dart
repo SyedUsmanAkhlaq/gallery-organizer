@@ -5,7 +5,9 @@ import 'package:go_router/go_router.dart';
 import '../features/albums/presentation/album_screen.dart';
 import '../features/albums/presentation/albums_screen.dart';
 import '../features/albums/presentation/viewer_screen.dart';
+import '../features/debug/debug_screen.dart';
 import '../features/placeholders/coming_soon_screen.dart';
+import '../features/settings/settings_screen.dart';
 import 'home_shell.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -15,6 +17,9 @@ abstract final class Routes {
   static String album(String albumId, String name) =>
       '/albums/${Uri.encodeComponent(albumId)}'
       '?name=${Uri.encodeQueryComponent(name)}';
+
+  static const settings = '/settings';
+  static const debug = '/debug';
 
   static String viewer(String albumId, int index) =>
       '/view/${Uri.encodeComponent(albumId)}?index=$index';
@@ -64,6 +69,16 @@ final routerProvider = Provider<GoRouter>((ref) {
             ),
           ]),
         ],
+      ),
+      GoRoute(
+        path: Routes.settings,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const SettingsScreen(),
+      ),
+      GoRoute(
+        path: Routes.debug,
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const DebugScreen(),
       ),
       // Full-screen viewer sits on the root navigator, above the tab bar.
       GoRoute(

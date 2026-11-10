@@ -8,8 +8,8 @@ An Android app that browses the phone gallery by album, groups photos by **cloth
 
 | Milestone | Scope | State |
 |---|---|---|
-| 1 | Skeleton, permissions, Albums tab, viewer, CI + Release APK | **done (awaiting phone test)** |
-| 2 | Pigeon contract, Room, WorkManager scan loop, progress stream, debug screen | planned |
+| 1 | Skeleton, permissions, Albums tab, viewer, CI + Release APK | done |
+| 2 | Pigeon contract, Room, WorkManager scan loop, progress stream, debug screen | **done (awaiting phone test)** |
 | 3 | Clothing classification (MobileCLIP-S0, ONNX Runtime), Categories tab | planned |
 | 4 | Face detection (ML Kit) + recognition + clustering, People tab | planned |
 | 5 | Settings, delete-all-data, incremental detection, performance pass | planned |
@@ -51,10 +51,33 @@ Each build is also available as a workflow artifact (zip, needs GitHub login).
 
 The asset key everywhere is the MediaStore `_ID`, as a decimal string. On Android, photo_manager's `AssetEntity.id` is that same `_ID`, so the Kotlin scanner can return IDs and Flutter can rebuild a thumbnail from just `id` + type (`assetFor()` in `lib/features/albums/data/gallery_images.dart`). Milestone 2 adds a runtime check on the debug screen that compares IDs from both sides.
 
+## Native bridge (milestone 2)
+
+- **Contract:** `pigeons/native_api.dart`. CI runs `dart run pigeon --input pigeons/native_api.dart`, which generates `lib/bridge/native_api.g.dart` and `android/.../bridge/NativeApi.g.kt`. Generated files are gitignored. Pigeon is pinned to an exact version, so the generated code stays stable.
+- **Host API** (`GalleryHostApi`): `startScan`, `pauseScan`, `getScanStatus`, `getDebugInfo`, `verifyAssetIds`, `logError`, `getRecentErrors`, `clearErrors`, `shareLog`, `getAppInfo`. Category and people queries are added in milestones 3 and 4. Async methods are Kotlin `suspend` functions, and DB work runs on `Dispatchers.IO`.
+- **Progress stream:** a Pigeon `@EventChannelApi` (`scanProgress()`). It is a typed EventChannel, so there are no hand-written channel names. Events are throttled to about 7/s and carry `{state, stage, scanned, total, currentAssetId, avgMsPerImage, message}`.
+- **Scan engine** (`android/.../scan/`):
+  - `ScanWorker` is a `CoroutineWorker` running as a foreground worker (type `dataSync`) with a notification that has a Pause action. It is unique work with `KEEP`.
+  - `IndexStage` mirrors MediaStore into Room table `media_assets`:
+    1. `ScanPlanner` diffs MediaStore against stored `(assetId, dateModified)` keys.
+    2. Rows for deleted assets are removed.
+    3. New and changed rows are written newest first, in batches of 20.
+  - Pausing cancels the work. Starting again resumes, because finished rows match the cache key.
+- **Error log:** Kotlin crashes, scan errors and Flutter/Dart errors (`FlutterError.onError`, `PlatformDispatcher.onError`, forwarded over Pigeon) all go into one log of the last 100 errors, stored in `files/logs/errors.log`. File-system paths are stripped before anything is stored.
+
+### Debug screen
+
+Settings (gear icon on Albums) → tap **Version** 7 times. It shows:
+- live scan state and per-stage processed count, ms/item and delegate
+- DB counts and size, and the WorkManager state
+- an **asset ID check**: the first 50 photo_manager IDs are looked up as MediaStore `_ID`s
+- the error list, with **Share log**, **Copy**, **Clear** and **Log test error** buttons
+
 ## Decisions
 
 - **Inference runtime: ONNX Runtime Mobile**, not LiteRT/TFLite. MobileCLIP and other `open_clip` models export to ONNX with a single `torch.onnx.export`. CLIP→TFLite goes through onnx2tf or ai-edge-torch and often breaks on attention or LayerNorm ops. Most MobileFaceNet-class face models also ship as ONNX. ONNX Runtime has NNAPI and XNNPACK execution providers with CPU fallback.
 - **arm64-only APK** (`--target-platform android-arm64`).
+- **Theme:** always black, with a monochrome Material 3 scheme (`lib/app/theme.dart`).
 - **No R8/minify:** avoids keep-rule breakage in Room, ONNX Runtime and ML Kit.
 - **Toolchain pinned in `android/settings.gradle.kts`:** AGP 8.11.1, Kotlin 2.2.20, Gradle 8.14.3, compile/target SDK 36, minSdk 26. Pinning lets milestone 2 pick a matching KSP for Room.
 - **Signing:** `android/app/debug.keystore` is a throwaway PKCS12 key (alias `androiddebugkey`, password `android`), committed on purpose. It was generated with `openssl` (the Mac had no JDK); CI checks it with `keytool` before building.
@@ -80,4 +103,12 @@ Milestones 3 and 4 fill this in (MobileCLIP-S0 weights, face recognition weights
 
 ## Development without a local Flutter SDK
 
-CI runs `flutter pub get` → `flutter analyze` → `flutter test` → `flutter build apk --release`. Pure logic (paging, formatting, permission mapping; later clustering, softmax/thresholds, DB queries) lives in Flutter-free Dart or Kotlin files with unit tests.
+CI runs these steps in order:
+1. `flutter pub get`
+2. Pigeon codegen
+3. `flutter analyze`
+4. `flutter test`
+5. `flutter build apk --release`
+6. Kotlin unit tests (`./gradlew :app:testReleaseUnitTest`): JUnit for pure logic, plus Robolectric with in-memory Room for the index stage
+
+Each step runs through `tools/ci/run.sh`. On failure, the script posts the relevant log lines as a GitHub error annotation, which can be read without logging in. Pure logic (paging, formatting, permission mapping; later clustering, softmax/thresholds, DB queries) lives in Flutter-free Dart or Kotlin files with unit tests.

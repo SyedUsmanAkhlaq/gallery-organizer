@@ -17,7 +17,16 @@ class AlbumsScreen extends ConsumerWidget {
     final albums = ref.watch(albumsProvider);
     final epoch = ref.watch(galleryEpochProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('Albums')),
+      appBar: AppBar(
+        title: const Text('Albums'),
+        actions: [
+          IconButton(
+            tooltip: 'Settings',
+            onPressed: () => context.push(Routes.settings),
+            icon: const Icon(Icons.settings_outlined),
+          ),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: () async => ref.read(galleryEpochProvider.notifier).bump(),
         child: albums.when(

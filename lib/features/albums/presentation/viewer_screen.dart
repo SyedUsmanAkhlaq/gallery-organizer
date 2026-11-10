@@ -28,6 +28,15 @@ class _ViewerScreenState extends ConsumerState<ViewerScreen> {
       PageController(initialPage: widget.initialIndex);
   late int _index = widget.initialIndex;
 
+  /// True while the current photo is zoomed in or two fingers are down.
+  /// Paging is disabled then, otherwise the PageView's horizontal drag wins
+  /// the gesture arena and pinch-zoom never starts.
+  bool _pagingLocked = false;
+
+  void _setPagingLocked(bool locked) {
+    if (locked != _pagingLocked) setState(() => _pagingLocked = locked);
+  }
+
   @override
   void dispose() {
     _controller.dispose();
@@ -56,9 +65,15 @@ class _ViewerScreenState extends ConsumerState<ViewerScreen> {
           ? const Center(child: CircularProgressIndicator())
           : PageView.builder(
               controller: _controller,
+              physics: _pagingLocked
+                  ? const NeverScrollableScrollPhysics()
+                  : null,
               itemCount: items.length,
               onPageChanged: (i) {
-                setState(() => _index = i);
+                setState(() {
+                  _index = i;
+                  _pagingLocked = false;
+                });
                 if (shouldPrefetch<MediaItem>(paged, i)) {
                   ref.read(provider.notifier).loadMore();
                 }
@@ -67,37 +82,110 @@ class _ViewerScreenState extends ConsumerState<ViewerScreen> {
                 final item = items[i];
                 return item.isVideo
                     ? _VideoPage(key: ValueKey('v${item.id}'), item: item)
-                    : _PhotoPage(key: ValueKey('p${item.id}'), item: item);
+                    : _PhotoPage(
+                        key: ValueKey('p${item.id}'),
+                        item: item,
+                        onLockChanged: _setPagingLocked,
+                      );
               },
             ),
     );
   }
 }
 
-class _PhotoPage extends StatelessWidget {
-  const _PhotoPage({super.key, required this.item});
+/// Max zoom for photos, and the zoom level a double-tap jumps to.
+const double kMaxPhotoZoom = 5;
+const double kDoubleTapZoom = 2.5;
+
+class _PhotoPage extends StatefulWidget {
+  const _PhotoPage({
+    super.key,
+    required this.item,
+    required this.onLockChanged,
+  });
 
   final MediaItem item;
+  final ValueChanged<bool> onLockChanged;
+
+  @override
+  State<_PhotoPage> createState() => _PhotoPageState();
+}
+
+class _PhotoPageState extends State<_PhotoPage> {
+  final _transform = TransformationController();
+  int _pointers = 0;
+  Offset _doubleTapAt = Offset.zero;
+
+  bool get _zoomed => _transform.value.getMaxScaleOnAxis() > 1.01;
+
+  void _reportLock() => widget.onLockChanged(_pointers >= 2 || _zoomed);
+
+  void _pointerDown(PointerDownEvent _) {
+    _pointers++;
+    _reportLock();
+  }
+
+  void _pointerUp(PointerEvent _) {
+    _pointers = (_pointers - 1).clamp(0, 10);
+    _reportLock();
+  }
+
+  void _toggleZoom() {
+    if (_zoomed) {
+      _transform.value = Matrix4.identity();
+    } else {
+      // Scale around the tapped point: x' = s*x + (1 - s)*p.
+      const s = kDoubleTapZoom;
+      final p = _doubleTapAt;
+      _transform.value = Matrix4.identity()
+        ..setEntry(0, 0, s)
+        ..setEntry(1, 1, s)
+        ..setEntry(0, 3, (1 - s) * p.dx)
+        ..setEntry(1, 3, (1 - s) * p.dy);
+    }
+    _reportLock();
+  }
+
+  @override
+  void dispose() {
+    _transform.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return InteractiveViewer(
-      maxScale: 5,
-      child: Center(
-        child: Image(
-          image: viewerImageProvider(item),
-          fit: BoxFit.contain,
-          gaplessPlayback: true,
-          // Show the (already cached) grid thumbnail until the large image
-          // is decoded.
-          frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-            if (wasSynchronouslyLoaded || frame != null) return child;
-            return Image(image: thumbnailProvider(item), fit: BoxFit.contain);
-          },
-          errorBuilder: (context, error, stackTrace) => const Icon(
-            Icons.broken_image_outlined,
-            color: Colors.white54,
-            size: 64,
+    final item = widget.item;
+    return Listener(
+      onPointerDown: _pointerDown,
+      onPointerUp: _pointerUp,
+      onPointerCancel: _pointerUp,
+      child: GestureDetector(
+        onDoubleTapDown: (d) => _doubleTapAt = d.localPosition,
+        onDoubleTap: _toggleZoom,
+        child: InteractiveViewer(
+          transformationController: _transform,
+          maxScale: kMaxPhotoZoom,
+          onInteractionEnd: (_) => _reportLock(),
+          child: SizedBox.expand(
+            child: Image(
+              image: viewerImageProvider(item),
+              fit: BoxFit.contain,
+              gaplessPlayback: true,
+              // Show the (already cached) grid thumbnail until the large
+              // image is decoded.
+              frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                if (wasSynchronouslyLoaded || frame != null) return child;
+                return Image(
+                  image: thumbnailProvider(item),
+                  fit: BoxFit.contain,
+                );
+              },
+              errorBuilder: (context, error, stackTrace) => const Icon(
+                Icons.broken_image_outlined,
+                color: Colors.white54,
+                size: 64,
+              ),
+            ),
           ),
         ),
       ),

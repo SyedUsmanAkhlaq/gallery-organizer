@@ -41,22 +41,32 @@ jobs:
       - name: Verify committed signing key is readable
         run: keytool -list -keystore android/app/debug.keystore -storetype pkcs12 -storepass android -alias androiddebugkey
 
-      - run: flutter pub get
+      - name: pub get
+        run: tools/ci/run.sh "pub get" flutter pub get
+
+      # Pigeon output is not committed: generate the Dart + Kotlin bridge.
+      - name: Generate Pigeon bridge
+        run: tools/ci/run.sh "pigeon" dart run pigeon --input pigeons/native_api.dart
 
       - name: Analyze
-        run: flutter analyze --no-fatal-infos
+        run: tools/ci/run.sh "analyze" flutter analyze --no-fatal-infos
 
-      - name: Unit tests
-        run: flutter test
+      - name: Dart unit tests
+        run: tools/ci/run.sh "flutter test" flutter test
 
       # arm64-only: every Android 13/14 phone is arm64; halves APK size once
       # the native inference libraries are added.
       - name: Build release APK
         run: >
-          flutter build apk --release
+          tools/ci/run.sh "build apk" flutter build apk --release
           --target-platform android-arm64
           --build-number ${{ github.run_number }}
           --build-name 0.1.${{ github.run_number }}
+
+      # gradlew + local.properties exist once the Flutter build has run.
+      - name: Kotlin unit tests
+        working-directory: android
+        run: ../tools/ci/run.sh "kotlin tests" ./gradlew :app:testReleaseUnitTest --no-daemon
 
       - name: Rename APK
         run: |

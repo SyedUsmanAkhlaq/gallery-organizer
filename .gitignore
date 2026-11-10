@@ -23,6 +23,10 @@ android/captures/
 android/**/build/
 *.jks.bak
 
+# Pigeon output (generated in CI by `dart run pigeon`)
+lib/bridge/*.g.dart
+android/app/src/main/kotlin/dev/personal/galleryorganizer/bridge/*.g.kt
+
 # Python tooling (milestone 3)
 tools/.venv/
 tools/out/
