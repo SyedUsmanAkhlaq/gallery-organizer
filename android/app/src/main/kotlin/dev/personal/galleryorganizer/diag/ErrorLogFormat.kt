@@ -33,7 +33,7 @@ object ErrorLogFormat {
         append(entry.timestampMillis).append(' ')
         append(Instant.ofEpochMilli(entry.timestampMillis).toString()).append(' ')
         append('[').append(entry.source.replace(']', ')').replace('\n', ' ')).append("] ")
-        append(entry.message.replace('\r', ' ').replace('\n', ' ⏎ '))
+        append(entry.message.replace('\r', ' ').replace("\n", " ⏎ "))
         append('\n')
         entry.stack?.trimEnd()?.takeIf { it.isNotEmpty() }?.let {
             // A stack line must never look like an entry header.

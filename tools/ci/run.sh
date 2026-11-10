@@ -14,7 +14,7 @@ if [ "$status" -ne 0 ]; then
     echo "--- matching lines ---"
     grep -nE "error|Error|FAILED|Exception|^e: |What went wrong|Because|version solving" "$log" | head -n 60 || true
     echo "--- last 80 lines ---"
-    tail -n 80 "$log"
+    grep -vE "^\[=*|Downloading|Unzipping" "$log" | tail -n 80
   } > "$log.summary"
   msg=$(sed -e 's/%/%25/g' -e 's/\r/%0D/g' "$log.summary" | awk 'BEGIN{ORS="%0A"} {print}')
   echo "::error title=${name} failed::${msg}"
