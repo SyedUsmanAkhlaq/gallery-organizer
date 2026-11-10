@@ -28,6 +28,16 @@ android {
         ndk { abiFilters += listOf("arm64-v8a") }
     }
 
+    packaging {
+        jniLibs {
+            // abiFilters alone did not strip the AAR libs of ONNX Runtime /
+            // ML Kit (build-5 shipped x86_64 + armeabi-v7a too: +80 MB).
+            excludes += listOf("lib/x86/**", "lib/x86_64/**", "lib/armeabi-v7a/**")
+            // Compress .so files in the APK (smaller download).
+            useLegacyPackaging = true
+        }
+    }
+
     // Models are copied to app storage once and memory-mapped by ONNX Runtime.
     androidResources {
         noCompress += listOf("onnx")
