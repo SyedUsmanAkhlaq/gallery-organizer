@@ -4,19 +4,23 @@ import 'package:video_player/video_player.dart';
 
 import '../../../core/format.dart';
 import '../../../core/paging.dart';
+import '../../media/media_providers.dart';
+import '../../scan/presentation/asset_info_sheet.dart';
 import '../data/gallery_images.dart';
 import '../domain/media.dart';
 import 'providers.dart';
 
-/// Full-screen swipeable viewer over the same paged list as the album grid.
+/// Full-screen swipeable viewer over the same paged list as the grid it was
+/// opened from (album, category or person).
 class ViewerScreen extends ConsumerStatefulWidget {
   const ViewerScreen({
     super.key,
-    required this.albumId,
+    required this.source,
     required this.initialIndex,
   });
 
-  final String albumId;
+  /// [MediaSourceKey.encoded] of the grid.
+  final String source;
   final int initialIndex;
 
   @override
@@ -45,7 +49,7 @@ class _ViewerScreenState extends ConsumerState<ViewerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final provider = albumMediaProvider(widget.albumId);
+    final provider = mediaPageProvider(widget.source);
     final paged = ref.watch(provider);
     final items = paged.items;
 
@@ -60,6 +64,16 @@ class _ViewerScreenState extends ConsumerState<ViewerScreen> {
               ? ''
               : '${_index + 1} / ${items.length}${paged.hasMore ? '+' : ''}',
         ),
+        actions: [
+          if (items.isNotEmpty &&
+              _index < items.length &&
+              !items[_index].isVideo)
+            IconButton(
+              tooltip: 'What the app found',
+              icon: const Icon(Icons.info_outline),
+              onPressed: () => showAssetInfo(context, items[_index]),
+            ),
+        ],
       ),
       body: items.isEmpty
           ? const Center(child: CircularProgressIndicator())

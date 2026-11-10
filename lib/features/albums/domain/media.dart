@@ -25,6 +25,8 @@ class MediaItem {
     required this.height,
     this.durationSeconds = 0,
     this.orientation = 0,
+    this.score,
+    this.albumName,
   });
 
   final String id;
@@ -33,6 +35,12 @@ class MediaItem {
   final int height;
   final int durationSeconds;
   final int orientation;
+
+  /// Classifier score (category grids only).
+  final double? score;
+
+  /// Source album (people grids show it under each photo).
+  final String? albumName;
 
   bool get isVideo => kind == MediaKind.video;
 }

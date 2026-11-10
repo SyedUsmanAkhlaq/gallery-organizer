@@ -9,7 +9,9 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.core.content.pm.PackageInfoCompat
+import dev.personal.galleryorganizer.AppSettings
 import dev.personal.galleryorganizer.db.AppDatabase
+import dev.personal.galleryorganizer.face.PeopleRepository
 import dev.personal.galleryorganizer.diag.ErrorLog
 import dev.personal.galleryorganizer.scan.MediaStoreScanner
 import dev.personal.galleryorganizer.scan.ScanProgress
@@ -30,6 +32,9 @@ import kotlinx.coroutines.withContext
 class GalleryHostApiImpl(private val activity: Activity) : GalleryHostApi {
     private val context get() = activity.applicationContext
     private val stats by lazy { ScanStatsStore(context) }
+    private val settings by lazy { AppSettings(context) }
+    private val queries by lazy { AnalysisQueries(context) }
+    private val people by lazy { PeopleRepository(AppDatabase.get(context)) }
 
     override fun startScan() {
         requestNotificationPermissionIfNeeded()
@@ -75,13 +80,21 @@ class GalleryHostApiImpl(private val activity: Activity) : GalleryHostApi {
                 lastRunAtMillis = s?.lastRunAtMillis,
             )
         }
-        DebugInfoMsg(
-            indexedImages = dao.count(false).toLong(),
-            indexedVideos = dao.count(true).toLong(),
-            dbSizeBytes = AppDatabase.sizeOnDisk(context),
-            workState = ScanScheduler.workState(context),
-            stages = stages,
-            errorCount = ErrorLog.count().toLong(),
+        queries.fillDebug(
+            DebugInfoMsg(
+                indexedImages = dao.count(false).toLong(),
+                indexedVideos = dao.count(true).toLong(),
+                dbSizeBytes = AppDatabase.sizeOnDisk(context),
+                workState = ScanScheduler.workState(context),
+                stages = stages,
+                errorCount = ErrorLog.count().toLong(),
+                clothingProcessed = 0,
+                faceScanned = 0,
+                faceCount = 0,
+                peopleCount = 0,
+                faceModelVersion = "",
+                categories = emptyList(),
+            ),
         )
     }
 
@@ -126,6 +139,9 @@ class GalleryHostApiImpl(private val activity: Activity) : GalleryHostApi {
                 "Indexed: ${debug.indexedImages} images, ${debug.indexedVideos} videos; " +
                     "work=${debug.workState}; db=${debug.dbSizeBytes} bytes",
             )
+            appendLine("Clothing: processed=${debug.clothingProcessed} encoder=${debug.clothingEncoderVersion} labels=${debug.clothingLabelsVersion}")
+            appendLine("Faces: scanned=${debug.faceScanned} faces=${debug.faceCount} people=${debug.peopleCount} model=${debug.faceModelVersion}")
+            appendLine("Categories: " + debug.categories.joinToString { "${it.key}=${it.count}" })
             for (s in debug.stages) {
                 appendLine("Stage ${s.stage}: processed=${s.processed} avgMs=${"%.2f".format(s.avgMsPerImage)} delegate=${s.delegate ?: "-"}")
             }
@@ -151,6 +167,73 @@ class GalleryHostApiImpl(private val activity: Activity) : GalleryHostApi {
             sdkInt = Build.VERSION.SDK_INT.toLong(),
             device = "${Build.MANUFACTURER} ${Build.MODEL}",
         )
+    }
+
+    override fun onAppStarted() = ScanScheduler.onAppStarted(context)
+
+    override suspend fun getCategorySummaries(): List<CategorySummaryMsg> =
+        withContext(Dispatchers.IO) { queries.categorySummaries() }
+
+    override suspend fun getAssetIdsByCategory(category: String, page: Long, size: Long): List<AssetRefMsg> =
+        withContext(Dispatchers.IO) { queries.assetsByCategory(category, page.toInt(), size.toInt()) }
+
+    override suspend fun getPeople(includeHidden: Boolean, includeSingles: Boolean): List<PersonMsg> =
+        withContext(Dispatchers.IO) { queries.people(includeHidden, includeSingles) }
+
+    override suspend fun getAssetIdsByPerson(personId: Long, page: Long, size: Long): List<AssetRefMsg> =
+        withContext(Dispatchers.IO) { queries.assetsByPerson(personId, page.toInt(), size.toInt()) }
+
+    override suspend fun renamePerson(personId: Long, name: String?) =
+        withContext(Dispatchers.IO) { people.rename(personId, name) }
+
+    override suspend fun mergePeople(sourceId: Long, targetId: Long) =
+        withContext(Dispatchers.IO) { people.merge(sourceId, targetId) }
+
+    override suspend fun removeFaceFromPerson(personId: Long, assetId: String, targetPersonId: Long?) {
+        withContext(Dispatchers.IO) {
+            val id = assetId.toLongOrNull() ?: return@withContext
+            people.removeFaceFromPerson(personId, id, targetPersonId)
+        }
+    }
+
+    override suspend fun setPersonHidden(personId: Long, hidden: Boolean) =
+        withContext(Dispatchers.IO) { people.setHidden(personId, hidden) }
+
+    override suspend fun setClusteringSensitivity(sensitivity: Double): Long = withContext(Dispatchers.IO) {
+        settings.clusteringSensitivity = sensitivity.toFloat()
+        people.mergePass(settings.clusteringSensitivity).toLong()
+    }
+
+    override suspend fun getAssetDetails(assetId: String): AssetDetailsMsg = withContext(Dispatchers.IO) {
+        val id = assetId.toLongOrNull()
+        if (id == null) AssetDetailsMsg(analyzed = false, labels = emptyList(), people = emptyList()) else queries.assetDetails(id)
+    }
+
+    override suspend fun getSettings(): SettingsMsg = withContext(Dispatchers.IO) {
+        SettingsMsg(
+            clusteringSensitivity = settings.clusteringSensitivity.toDouble(),
+            clothingThreshold = settings.clothingThreshold.toDouble(),
+            showSinglePhotoPeople = settings.showSinglePhotoPeople,
+            accelerator = settings.accelerator,
+        )
+    }
+
+    override suspend fun updateSettings(settings: SettingsMsg) = withContext(Dispatchers.IO) {
+        val s = this@GalleryHostApiImpl.settings
+        val sensitivityChanged = s.clusteringSensitivity != settings.clusteringSensitivity.toFloat()
+        s.clothingThreshold = settings.clothingThreshold.toFloat()
+        s.showSinglePhotoPeople = settings.showSinglePhotoPeople
+        s.accelerator = settings.accelerator
+        s.clusteringSensitivity = settings.clusteringSensitivity.toFloat()
+        if (sensitivityChanged) people.mergePass(s.clusteringSensitivity)
+        Unit
+    }
+
+    override suspend fun deleteAllAnalysisData() = withContext(Dispatchers.IO) {
+        ScanScheduler.cancelAll(context)
+        AppDatabase.get(context).maintenance().clearAll()
+        stats.reset()
+        ScanProgressBus.publish(ScanProgress(ScanStateK.IDLE, StageK.INDEXING, 0, 0, message = "Analysis data deleted"))
     }
 
     private fun requestNotificationPermissionIfNeeded() {

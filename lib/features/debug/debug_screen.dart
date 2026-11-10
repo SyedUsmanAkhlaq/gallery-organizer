@@ -126,14 +126,21 @@ class _DebugScreenState extends ConsumerState<DebugScreen> {
                   _kv('Indexed videos', '${info.indexedVideos}'),
                   _kv('Database size', _bytes(info.dbSizeBytes)),
                   _kv('WorkManager state', info.workState),
+                  const _Section('Clothing'),
+                  _kv('Images classified', '${info.clothingProcessed}'),
+                  _kv('Encoder', info.clothingEncoderVersion ?? 'model missing'),
+                  _kv('Labels version', info.clothingLabelsVersion ?? '—'),
+                  for (final c in info.categories)
+                    _kv('  ${c.label}', '${c.count}'),
+                  const _Section('Faces'),
+                  _kv('Images scanned', '${info.faceScanned}'),
+                  _kv('Faces', '${info.faceCount}'),
+                  _kv('People (clusters)', '${info.peopleCount}'),
+                  _kv('Model', info.faceModelVersion),
                 ],
               );
             },
           ),
-          const _Section('Categories'),
-          _kv('Counts per category', 'available in milestone 3'),
-          const _Section('Faces'),
-          _kv('Faces / clusters', 'available in milestone 4'),
           const _Section('Asset ID check'),
           ListTile(
             title: Text(_idCheck == null
@@ -236,8 +243,8 @@ class _StageRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final name = switch (stats.stage) {
       ScanStage.indexing => 'Indexing',
-      ScanStage.clothing => 'Clothing (M3)',
-      ScanStage.faces => 'Faces (M4)',
+      ScanStage.clothing => 'Clothing',
+      ScanStage.faces => 'Faces',
     };
     final last = stats.lastRunAtMillis;
     return ListTile(

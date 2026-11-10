@@ -1,0 +1,115 @@
+# Zero-shot clothing categories for the Categories tab.
+#
+# Each entry: key (stored in the database, never rename an existing key),
+# label (shown in the app), clothing (false = negative bucket that is never
+# shown as an outfit), prompts (several phrasings; their text embeddings are
+# averaged = prompt ensembling).
+#
+# To add a category: add an entry and push. CI re-runs
+# tools/export_models.py, the app sees a new labels version and re-labels
+# all photos from their stored embeddings (no model re-run, fast).
+#
+# Negatives matter: softmax always picks a winner, so without the
+# non-clothing prompts a landscape would end up as "saree".
+
+categories:
+  - key: shalwar_kameez
+    label: Shalwar kameez
+    clothing: true
+    prompts:
+      - a photo of a person wearing a shalwar kameez
+      - a photo of a person wearing a salwar kameez with a dupatta
+      - a photo of a man wearing a white shalwar kameez
+      - a photo of a woman wearing a printed lawn suit with loose trousers
+      - a photo of people in traditional Pakistani clothes
+
+  - key: saree
+    label: Saree
+    clothing: true
+    prompts:
+      - a photo of a woman wearing a saree
+      - a photo of a woman wearing a sari draped over her shoulder
+      - a photo of a woman in a silk saree with a blouse
+      - a photo of a woman in a traditional Indian sari
+
+  - key: lehenga
+    label: Lehenga
+    clothing: true
+    prompts:
+      - a photo of a woman wearing a lehenga
+      - a photo of a bride wearing an embroidered bridal lehenga
+      - a photo of a woman in a lehenga choli with a long flared skirt
+      - a photo of a woman wearing a heavy wedding dress with a dupatta at a South Asian wedding
+
+  - key: kurta
+    label: Kurta
+    clothing: true
+    prompts:
+      - a photo of a person wearing a kurta with jeans
+      - a photo of a man wearing a kurta
+      - a photo of a woman wearing a long kurti
+      - a photo of a person in a casual cotton kurta
+
+  - key: abaya_hijab
+    label: Abaya / hijab
+    clothing: true
+    prompts:
+      - a photo of a woman wearing an abaya
+      - a photo of a woman wearing a hijab
+      - a photo of a woman wearing a headscarf covering her hair
+      - a photo of a woman in a long black abaya and niqab
+
+  - key: western_casual
+    label: Western casual
+    clothing: true
+    prompts:
+      - a photo of a person wearing a t-shirt and jeans
+      - a photo of a person in casual western clothes
+      - a photo of a person wearing a hoodie
+      - a photo of a woman wearing a casual dress
+      - a photo of a person in a shirt and trousers
+
+  - key: formal_suit
+    label: Formal suit
+    clothing: true
+    prompts:
+      - a photo of a man wearing a formal suit and tie
+      - a photo of a person in a business suit
+      - a photo of a man wearing a tuxedo
+      - a photo of a man wearing a sherwani at a wedding
+
+  - key: swimwear
+    label: Swimwear
+    clothing: true
+    prompts:
+      - a photo of a person wearing swimwear
+      - a photo of a person in a swimsuit at the beach
+      - a photo of a person in swimming shorts at a pool
+
+  - key: other_clothing
+    label: Other clothing
+    clothing: true
+    prompts:
+      - a photo of a person wearing clothes
+      - a photo of a person wearing sportswear
+      - a photo of a person wearing a school uniform
+      - a photo of a person wearing a winter jacket
+      - a photo of a child wearing clothes
+
+  - key: no_person_or_other
+    label: Not clothing
+    clothing: false
+    prompts:
+      - a photo of a landscape
+      - a photo of nature with trees and sky
+      - a screenshot of a phone screen
+      - a screenshot of a chat conversation
+      - a photo of food on a plate
+      - a photo of a document with text
+      - a photo of a receipt
+      - a photo of a building
+      - a photo of an animal
+      - a photo of a car
+      - a photo of an empty room
+      - a meme with text
+      - a photo of a product on a table

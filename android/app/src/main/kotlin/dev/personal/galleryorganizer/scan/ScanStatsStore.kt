@@ -15,6 +15,12 @@ class ScanStatsStore(context: Context) {
         get() = prefs.getLong("lastCompletedAt", 0L)
         set(value) = prefs.edit { putLong("lastCompletedAt", value) }
 
+    /** After "delete all analysis data": forget progress, stay paused until the user scans. */
+    fun reset() = prefs.edit {
+        clear()
+        putBoolean("paused", true)
+    }
+
     data class StageStats(
         val processed: Int,
         val avgMs: Double,

@@ -5,8 +5,10 @@ import 'package:go_router/go_router.dart';
 import '../features/albums/presentation/album_screen.dart';
 import '../features/albums/presentation/albums_screen.dart';
 import '../features/albums/presentation/viewer_screen.dart';
+import '../features/categories/categories_screen.dart';
 import '../features/debug/debug_screen.dart';
-import '../features/placeholders/coming_soon_screen.dart';
+import '../features/people/people_screen.dart';
+import '../features/people/person_screen.dart';
 import '../features/settings/settings_screen.dart';
 import 'home_shell.dart';
 
@@ -21,8 +23,15 @@ abstract final class Routes {
   static const settings = '/settings';
   static const debug = '/debug';
 
-  static String viewer(String albumId, int index) =>
-      '/view/${Uri.encodeComponent(albumId)}?index=$index';
+  static String category(String key, String label) =>
+      '/categories/${Uri.encodeComponent(key)}'
+      '?name=${Uri.encodeQueryComponent(label)}';
+
+  static String person(int id) => '/people/$id';
+
+  /// [source] = MediaSourceKey.encoded of the grid the viewer pages through.
+  static String viewer(String source, int index) =>
+      '/view?src=${Uri.encodeQueryComponent(source)}&index=$index';
 }
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -51,21 +60,30 @@ final routerProvider = Provider<GoRouter>((ref) {
           StatefulShellBranch(routes: [
             GoRoute(
               path: '/categories',
-              builder: (context, state) => const ComingSoonScreen(
-                title: 'Categories',
-                icon: Icons.checkroom_outlined,
-                message: 'Clothing categories arrive in milestone 3.',
-              ),
+              builder: (context, state) => const CategoriesScreen(),
+              routes: [
+                GoRoute(
+                  path: ':key',
+                  builder: (context, state) => CategoryScreen(
+                    categoryKey: state.pathParameters['key']!,
+                    title: state.uri.queryParameters['name'] ?? 'Category',
+                  ),
+                ),
+              ],
             ),
           ]),
           StatefulShellBranch(routes: [
             GoRoute(
               path: '/people',
-              builder: (context, state) => const ComingSoonScreen(
-                title: 'People',
-                icon: Icons.face_outlined,
-                message: 'Face grouping arrives in milestone 4.',
-              ),
+              builder: (context, state) => const PeopleScreen(),
+              routes: [
+                GoRoute(
+                  path: ':id',
+                  builder: (context, state) => PersonScreen(
+                    personId: int.parse(state.pathParameters['id']!),
+                  ),
+                ),
+              ],
             ),
           ]),
         ],
@@ -82,10 +100,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       // Full-screen viewer sits on the root navigator, above the tab bar.
       GoRoute(
-        path: '/view/:albumId',
+        path: '/view',
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => ViewerScreen(
-          albumId: state.pathParameters['albumId']!,
+          source: state.uri.queryParameters['src'] ?? '',
           initialIndex:
               int.tryParse(state.uri.queryParameters['index'] ?? '') ?? 0,
         ),

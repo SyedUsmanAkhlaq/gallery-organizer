@@ -31,3 +31,6 @@ android/app/src/main/kotlin/dev/personal/galleryorganizer/bridge/*.g.kt
 tools/.venv/
 tools/out/
 __pycache__/
+
+# Model files (exported/downloaded by CI; licenses forbid redistribution here)
+android/app/src/main/assets/models/

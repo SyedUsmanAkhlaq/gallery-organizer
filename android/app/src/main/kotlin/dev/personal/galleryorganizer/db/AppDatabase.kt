@@ -6,13 +6,32 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 
 /**
- * Schema history (add a Migration for every bump; never destructive, since
- * user corrections from milestone 4 must survive upgrades):
+ * Schema history:
  *  v1 (M2): media_assets
+ *  v2: clothing_results, face_scans, faces, persons, face_exclusions.
+ *      v1 held only the rebuildable MediaStore index, so 1→2 is destructive.
+ *
+ * From v2 on, every bump needs a real Migration: persons/names/exclusions
+ * are user corrections and must never be dropped.
  */
-@Database(entities = [MediaAssetEntity::class], version = 1, exportSchema = false)
+@Database(
+    entities = [
+        MediaAssetEntity::class,
+        ClothingResultEntity::class,
+        FaceScanEntity::class,
+        FaceEntity::class,
+        PersonEntity::class,
+        FaceExclusionEntity::class,
+    ],
+    version = 2,
+    exportSchema = false,
+)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun mediaAssets(): MediaAssetDao
+    abstract fun clothing(): ClothingDao
+    abstract fun faces(): FaceDao
+    abstract fun persons(): PersonDao
+    abstract fun maintenance(): MaintenanceDao
 
     companion object {
         const val FILE_NAME = "analysis.db"
@@ -25,7 +44,8 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     FILE_NAME,
-                ).build().also { instance = it }
+                ).fallbackToDestructiveMigrationFrom(true, 1)
+                    .build().also { instance = it }
             }
 
         /** Bytes on disk including WAL/SHM side files. */

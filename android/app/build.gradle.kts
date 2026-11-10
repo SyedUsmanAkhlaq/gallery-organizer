@@ -24,6 +24,13 @@ android {
         targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        // Phones are arm64; keeps ONNX Runtime / ML Kit native libs small.
+        ndk { abiFilters += listOf("arm64-v8a") }
+    }
+
+    // Models are copied to app storage once and memory-mapped by ONNX Runtime.
+    androidResources {
+        noCompress += listOf("onnx")
     }
 
     signingConfigs {
@@ -80,6 +87,11 @@ dependencies {
     implementation("androidx.room:room-ktx:$roomVersion")
     ksp("androidx.room:room-compiler:$roomVersion")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+
+    // On-device inference (CPU/XNNPACK/NNAPI) for MobileCLIP and MobileFaceNet.
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.31.1")
+    // Face detection with the model bundled in the APK (works offline).
+    implementation("com.google.mlkit:face-detection:16.1.7")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.16.1")

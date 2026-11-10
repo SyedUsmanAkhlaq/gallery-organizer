@@ -71,7 +71,24 @@ class DebugInfoMsg {
     required this.workState,
     required this.stages,
     required this.errorCount,
+    required this.clothingProcessed,
+    required this.faceScanned,
+    required this.faceCount,
+    required this.peopleCount,
+    required this.faceModelVersion,
+    required this.categories,
   });
+
+  int clothingProcessed;
+  int faceScanned;
+  int faceCount;
+  int peopleCount;
+  String? clothingEncoderVersion;
+  String? clothingLabelsVersion;
+  String faceModelVersion;
+
+  /// All categories with counts at the current threshold (incl. negatives).
+  List<CategorySummaryMsg> categories;
 
   int indexedImages;
   int indexedVideos;
@@ -122,6 +139,120 @@ class IdCheckMsg {
   List<String> missing;
 }
 
+/// Category card. Special key `_uncertain`: clothing photos whose best
+/// score is below the confidence threshold.
+class CategorySummaryMsg {
+  CategorySummaryMsg({
+    required this.key,
+    required this.label,
+    required this.isClothing,
+    required this.count,
+    required this.coverWidth,
+    required this.coverHeight,
+  });
+
+  String key;
+  String label;
+  bool isClothing;
+  int count;
+  String? coverAssetId;
+  int coverWidth;
+  int coverHeight;
+}
+
+/// A gallery item returned by native queries (ID + what Flutter needs to
+/// build a photo_manager thumbnail).
+class AssetRefMsg {
+  AssetRefMsg({
+    required this.assetId,
+    required this.width,
+    required this.height,
+    required this.isVideo,
+  });
+
+  String assetId;
+  int width;
+  int height;
+  bool isVideo;
+  double? score;
+  String? albumName;
+}
+
+/// Normalized square crop around a face (0..1 of image width/height).
+class FaceBoxMsg {
+  FaceBoxMsg({
+    required this.left,
+    required this.top,
+    required this.right,
+    required this.bottom,
+  });
+
+  double left;
+  double top;
+  double right;
+  double bottom;
+}
+
+class PersonMsg {
+  PersonMsg({
+    required this.id,
+    required this.hidden,
+    required this.photoCount,
+    required this.faceCount,
+    required this.coverWidth,
+    required this.coverHeight,
+  });
+
+  int id;
+  String? name;
+  bool hidden;
+  int photoCount;
+  int faceCount;
+  String? coverAssetId;
+  int coverWidth;
+  int coverHeight;
+  FaceBoxMsg? coverBox;
+}
+
+class LabelScoreMsg {
+  LabelScoreMsg({required this.key, required this.label, required this.score});
+
+  String key;
+  String label;
+  double score;
+}
+
+class AssetDetailsMsg {
+  AssetDetailsMsg({
+    required this.analyzed,
+    required this.labels,
+    required this.people,
+  });
+
+  bool analyzed;
+  List<LabelScoreMsg> labels;
+  List<PersonMsg> people;
+}
+
+class SettingsMsg {
+  SettingsMsg({
+    required this.clusteringSensitivity,
+    required this.clothingThreshold,
+    required this.showSinglePhotoPeople,
+    required this.accelerator,
+  });
+
+  /// 0 = strict (fewer merges) .. 1 = loose.
+  double clusteringSensitivity;
+
+  /// Minimum top-1 score for a clothing category (default 0.5).
+  double clothingThreshold;
+  bool showSinglePhotoPeople;
+
+  /// "auto" or "cpu".
+  String accelerator;
+}
+
 @HostApi()
 abstract class GalleryHostApi {
   /// Enqueues the background scan (no-op if already running). On Android 13+
@@ -155,6 +286,59 @@ abstract class GalleryHostApi {
   void shareLog();
 
   AppInfoMsg getAppInfo();
+
+  /// First scan if never done + automatic pick-up of new photos.
+  void onAppStarted();
+
+  // ---- Categories ----------------------------------------------------------
+
+  @async
+  List<CategorySummaryMsg> getCategorySummaries();
+
+  @async
+  List<AssetRefMsg> getAssetIdsByCategory(String category, int page, int size);
+
+  // ---- People --------------------------------------------------------------
+
+  @async
+  List<PersonMsg> getPeople(bool includeHidden, bool includeSingles);
+
+  @async
+  List<AssetRefMsg> getAssetIdsByPerson(int personId, int page, int size);
+
+  @async
+  void renamePerson(int personId, String? name);
+
+  /// Moves everything of [sourceId] into [targetId].
+  @async
+  void mergePeople(int sourceId, int targetId);
+
+  /// "Not this person": the photo's faces leave [personId] for
+  /// [targetPersonId], or a new person when null.
+  @async
+  void removeFaceFromPerson(int personId, String assetId, int? targetPersonId);
+
+  @async
+  void setPersonHidden(int personId, bool hidden);
+
+  /// Saves the sensitivity and re-runs the merge pass; returns merges made.
+  @async
+  int setClusteringSensitivity(double sensitivity);
+
+  // ---- Misc ----------------------------------------------------------------
+
+  @async
+  AssetDetailsMsg getAssetDetails(String assetId);
+
+  @async
+  SettingsMsg getSettings();
+
+  @async
+  void updateSettings(SettingsMsg settings);
+
+  /// Stops the scan and deletes every analysis table (keeps settings).
+  @async
+  void deleteAllAnalysisData();
 }
 
 @EventChannelApi()
