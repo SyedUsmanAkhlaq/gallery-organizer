@@ -79,7 +79,7 @@ Settings (gear icon on Albums) → tap **Version** 7 times. It shows:
 - **arm64-only APK** (`--target-platform android-arm64`).
 - **Theme:** always black, with a monochrome Material 3 scheme (`lib/app/theme.dart`).
 - **No R8/minify:** avoids keep-rule breakage in Room, ONNX Runtime and ML Kit.
-- **Toolchain pinned in `android/settings.gradle.kts`:** AGP 8.11.1, Kotlin 2.2.20, Gradle 8.14.3, compile/target SDK 36, minSdk 26. Pinning lets milestone 2 pick a matching KSP for Room.
+- **Toolchain pinned in `android/settings.gradle.kts`:** AGP 8.13.2, Kotlin 2.2.20, Gradle 8.14.3, compile/target SDK 36, minSdk 26. Pinning lets milestone 2 pick a matching KSP for Room.
 - **Signing:** `android/app/debug.keystore` is a throwaway PKCS12 key (alias `androiddebugkey`, password `android`), committed on purpose. It was generated with `openssl` (the Mac had no JDK); CI checks it with `keytool` before building.
 
 ## Permissions
